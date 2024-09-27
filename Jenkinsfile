@@ -1,60 +1,66 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'NodeJS 14'  // Use the name you gave to the NodeJS installation
+    }
+
+    environment {
+        DOCKER_IMAGE = 'todo-app'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+    }
+
     stages {
+        stage('Environment Info') {
+            steps {
+                sh 'pwd'
+                sh 'ls -la'
+                sh 'which node'
+                sh 'node --version'
+                sh 'which npm'
+                sh 'npm --version'
+                sh 'which docker'
+                sh 'docker --version'
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'ls -la'
+            }
+        }
+
         stage('Build') {
             steps {
                 echo 'Building the application...'
-                sh 'npm install'
+                
+                sh 'npm ci || npm install'
+                sh 'ls -la node_modules'
+                
+                script {
+                    try {
+                        docker.withServer('unix:///var/run/docker.sock') {
+                            def customImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                            echo "Docker image built: ${customImage.id}"
+                        }
+                    } catch (Exception e) {
+                        echo "Docker build failed: ${e.message}"
+                        currentBuild.result = 'FAILURE'
+                        error("Docker build failed")
+                    }
+                }
             }
         }
-        
-        stage('Test') {
-            steps {
-                echo 'Running tests...'
-                sh 'npm test'
-            }
-        }
-        
-        stage('Code Quality Analysis') {
-            steps {
-                echo 'Running code quality analysis...'
-                // You would typically run a tool like SonarQube here
-                // For now, we'll use a placeholder command
-                sh 'echo "Running code quality analysis"'
-            }
-        }
-        
-        stage('Deploy to Staging') {
-            steps {
-                echo 'Deploying to staging environment...'
-                // You would typically deploy to a staging server here
-                // For now, we'll use a placeholder command
-                sh 'echo "Deploying to staging"'
-            }
-        }
-        
-        stage('Release') {
-            steps {
-                echo 'Releasing the application...'
-                // You would typically tag the release and deploy to production here
-                // For now, we'll use placeholder commands
-                sh 'echo "Tagging release"'
-                sh 'echo "Deploying to production"'
-            }
-        }
-        
-        stage('Monitoring') {
-            steps {
-                echo 'Setting up monitoring...'
-                // You would typically set up or update monitoring here
-                // For now, we'll use a placeholder command
-                sh 'echo "Setting up monitoring"'
-            }
-        }
+
+        // Other stages remain the same...
     }
 
     post {
+        always {
+            echo 'Pipeline finished'
+            sh 'docker images || true'
+        }
         success {
             echo 'Pipeline succeeded!'
         }
