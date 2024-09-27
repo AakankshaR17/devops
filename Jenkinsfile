@@ -19,8 +19,9 @@ pipeline {
                 sh 'node --version'
                 sh 'which npm'
                 sh 'npm --version'
-                sh 'which docker'
-                sh 'docker --version'
+                sh 'which docker || echo "Docker not found"'
+                sh 'docker --version || echo "Docker version command failed"'
+                sh 'docker info || echo "Docker info command failed"'
             }
         }
 
@@ -40,10 +41,8 @@ pipeline {
                 
                 script {
                     try {
-                        docker.withServer('unix:///var/run/docker.sock') {
-                            def customImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
-                            echo "Docker image built: ${customImage.id}"
-                        }
+                        def customImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                        echo "Docker image built: ${customImage.id}"
                     } catch (Exception e) {
                         echo "Docker build failed: ${e.message}"
                         currentBuild.result = 'FAILURE'
@@ -59,7 +58,7 @@ pipeline {
     post {
         always {
             echo 'Pipeline finished'
-            sh 'docker images || true'
+            sh 'docker images || echo "Unable to list Docker images"'
         }
         success {
             echo 'Pipeline succeeded!'
