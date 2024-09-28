@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'NodeJS 14'  // Use the name you gave to the NodeJS installation
+        nodejs 'NodeJS 14'  // Use the name you gave to the NodeJS installation in Jenkins
     }
 
     environment {
@@ -11,54 +11,45 @@ pipeline {
     }
 
     stages {
-        stage('Environment Info') {
-            steps {
-                sh 'pwd'
-                sh 'ls -la'
-                sh 'which node'
-                sh 'node --version'
-                sh 'which npm'
-                sh 'npm --version'
-                sh 'which docker || echo "Docker not found"'
-                sh 'docker --version || echo "Docker version command failed"'
-                sh 'docker info || echo "Docker info command failed"'
-            }
-        }
-
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'ls -la'
             }
         }
 
         stage('Build') {
             steps {
-                echo 'Building the application...'
-                
-                sh 'npm ci || npm install'
-                sh 'ls -la node_modules'
-                
+                sh 'npm ci'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'npm test || echo "No tests specified"'
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
                 script {
-                    try {
-                        def customImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
-                        echo "Docker image built: ${customImage.id}"
-                    } catch (Exception e) {
-                        echo "Docker build failed: ${e.message}"
-                        currentBuild.result = 'FAILURE'
-                        error("Docker build failed")
-                    }
+                    docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
                 }
             }
         }
 
-        // Other stages remain the same...
+        stage('Docker Run') {
+            steps {
+                script {
+                    docker.image("${DOCKER_IMAGE}:${DOCKER_TAG}").run('-p 3000:3000 -d')
+                }
+            }
+        }
     }
 
     post {
         always {
             echo 'Pipeline finished'
-            sh 'docker images || echo "Unable to list Docker images"'
+            sh 'docker ps'
         }
         success {
             echo 'Pipeline succeeded!'
